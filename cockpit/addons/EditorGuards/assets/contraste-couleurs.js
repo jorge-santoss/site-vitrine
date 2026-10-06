@@ -73,8 +73,14 @@ function annotate(input) {
     }
 
     const { className, text } = verdict(input.value.trim());
-    notice.className = `contraste ${className}`;
-    notice.textContent = text;
+
+    // Writing to the DOM re-triggers the observer below: only touch it
+    // when something actually changed, otherwise scan() loops forever.
+    if (notice.textContent !== text) notice.textContent = text;
+
+    const wanted = `contraste ${className}`;
+
+    if (notice.className !== wanted) notice.className = wanted;
 }
 
 function scan() {
@@ -95,5 +101,14 @@ const style = document.createElement('style');
 style.textContent = STYLES;
 document.head.appendChild(style);
 
-new MutationObserver(scan).observe(document.documentElement, { childList: true, subtree: true });
+new MutationObserver((records) => {
+    // Our own notices live under `.contraste`: answering mutations from
+    // there would re-run scan() forever. Everything else still rescans.
+    const own = (record) =>
+        record.target instanceof Element && record.target.closest('.contraste');
+
+    if (records.every(own)) return;
+
+    scan();
+}).observe(document.documentElement, { childList: true, subtree: true });
 scan();
